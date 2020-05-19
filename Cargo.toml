@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "resultprocessor",
+    "resultgetter",
+    "db",
+    "util",
+]
