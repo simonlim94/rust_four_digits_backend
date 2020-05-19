@@ -24,7 +24,7 @@ This project is using serverless framework approach to deploy Rust code to AWS L
 2. Need to change synchoronous approach to asynchoronous approach
 
 ---
-## How to Deploy if interested. It is free to deploy anyway.
+## How to deploy if interested. It is free to deploy anyway.
 1. Having AWS account. And setup it for serverless deployment credential. Sample:
 ```
 serverless config credentials --provider aws --key AKIAIOSFODNN7EXAMPLE --secret wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
@@ -69,4 +69,4 @@ curl --request POST \
 ```
 
 ---
-I am still a ametuer Rustacean. Trying to learning Rust through some coding projects like this. This is my first try.
+I am still an ametuer Rustacean. Trying to learning Rust through some coding projects like this. This is my first try.
