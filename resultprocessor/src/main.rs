@@ -1,9 +1,8 @@
+use aws_lambda_events::event::cloudwatch_events::CloudWatchEvent;
 use bson::UtcDateTime;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use lambda_http::{lambda, IntoResponse, Request};
-use lambda_runtime::{error::HandlerError, Context};
+use lambda_runtime::{error::HandlerError, lambda, Context};
 use rand::{distributions::Uniform, Rng};
-use serde_json::json;
 
 use db::draw_results::DrawResult;
 
@@ -11,7 +10,7 @@ fn main() {
     lambda!(handler)
 }
 
-fn handler(_: Request, _: Context) -> Result<impl IntoResponse, HandlerError> {
+fn handler(_: CloudWatchEvent, _: Context) -> Result<(), HandlerError> {
     let mut rng = rand::thread_rng();
 
     let range = Uniform::new(0, 10000);
@@ -50,20 +49,28 @@ fn handler(_: Request, _: Context) -> Result<impl IntoResponse, HandlerError> {
     };
     db::draw_results::insert_draw_result(client, draw_result);
 
-    Ok(json!({}))
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    use serde_json::Value;
+    
     #[test]
     fn handler_handles() {
-        let request = Request::default();
-        let expected = json!({}).into_response();
-        let response = handler(request, Context::default())
-            .expect("expected Ok(_) value")
-            .into_response();
-        assert_eq!(response.body(), expected.body())
+        let request = CloudWatchEvent {
+            version: None,
+            id: None,
+            detail_type: None,
+            source: None,
+            account_id: None,
+            time: Utc::now(),
+            region: None,
+            resources: vec![],
+            detail: Value::Null,
+        };
+        let response = handler(request, Context::default()).expect("expected Ok(()) value");
+        assert_eq!(response, ())
     }
 }
