@@ -6,6 +6,8 @@ use rand::{distributions::Uniform, Rng};
 
 use db::draw_results::DrawResult;
 
+const NUMBER_OF_RESULTS: i32 = 23;
+
 fn main() {
     lambda!(handler)
 }
@@ -14,7 +16,7 @@ fn handler(_: CloudWatchEvent, _: Context) -> Result<(), HandlerError> {
     let mut rng = rand::thread_rng();
 
     let range = Uniform::new(0, 10000);
-    let num_of_random_numbers = 0..19; //19 random numbers
+    let num_of_random_numbers = 0..NUMBER_OF_RESULTS; 
 
     //produce 19 random numbers between 0 and 10000
     let vals: Vec<u64> = num_of_random_numbers.map(|_| rng.sample(range)).collect();
