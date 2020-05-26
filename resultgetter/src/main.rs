@@ -1,15 +1,24 @@
+mod lambda_gateway;
+
 use chrono::{DateTime, Utc};
-use lambda_http::{lambda, IntoResponse, Request};
-use lambda_runtime::{error::HandlerError, Context};
+use http::header::{ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_ORIGIN};
+use lambda_runtime::{error::HandlerError, lambda, Context};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use db::draw_results::DrawResult;
+use lambda_gateway::{LambdaRequest, LambdaResponse, LambdaResponseBuilder};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct InputPayload {
     #[serde(with = "date_format")]
     pub date: DateTime<Utc>,
+}
+
+impl InputPayload {
+    fn new() -> Self {
+        InputPayload { date: Utc::now() }
+    }
 }
 
 mod date_format {
@@ -50,39 +59,51 @@ mod date_format {
     }
 }
 
-fn main() {
-    lambda!(handler)
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // simple_logger::init_with_level(log::Level::Debug)?;
+    lambda!(lambda_handler);
+    Ok(())
 }
 
-fn handler(req: Request, _: Context) -> Result<impl IntoResponse, HandlerError> {
+fn lambda_handler(
+    req: LambdaRequest<InputPayload>,
+    _: Context,
+) -> Result<LambdaResponse, HandlerError> {
     let cfg = db::config::Config::new();
     let client = match db::connect(cfg) {
         Ok(c) => c,
         Err(e) => panic!(e),
     };
 
-    let body = match std::str::from_utf8(req.body()) {
-        Ok(b) => b,
-        Err(e) => panic!(e),
-    };
+    let payload = req.body();
+    let date = payload.date;
 
-    println!("body:{}", body);
-
-    let input: InputPayload = match serde_json::from_str(&body) {
-        Ok(b) => b,
-        Err(e) => panic!(e),
-    };
-
-    let result: DrawResult = match db::draw_results::get_draw_results(client, input.date) {
+    let result: DrawResult = match db::draw_results::get_draw_results(client, date) {
         Some(res) => res,
-        None => return Ok(json!({})),
+        None => panic!("no draw result"),
     };
 
-    Ok(json!({
-        "code": 200,
-        "success": true,
-        "payload": result,
-    }))
+    // Ok(json!({
+    //     "code": 200,
+    //     "success": true,
+    //     "items": result,
+    // }))
+
+    let response = LambdaResponseBuilder::new()
+        .with_header(ACCESS_CONTROL_ALLOW_ORIGIN.to_string(), String::from("*"))
+        .with_header(
+            ACCESS_CONTROL_ALLOW_HEADERS.to_string(),
+            String::from("Content-Type,X-Amz-Date,Authorization,X-Api-Key,x-requested-with"),
+        )
+        .with_status(200)
+        .with_json(json!({
+            "code": 200,
+            "success": true,
+            "items": result,
+        }))
+        .build();
+
+    Ok(response)
 }
 
 #[cfg(test)]
@@ -90,7 +111,6 @@ mod tests {
     use super::*;
     use bson::{oid::ObjectId, UtcDateTime};
     use chrono::NaiveDateTime;
-    use lambda_http::{http::HeaderValue, Body};
 
     #[test]
     fn handler_handles() {
@@ -103,19 +123,24 @@ mod tests {
                 Err(e) => panic!(e),
             };
 
-        let mut request = Request::new(Body::from(format!(
-            r#"{{"date":"{}"}}"#,
-            selected_date_time_str
-        )));
-        request
-            .headers_mut()
-            .insert("Content-Type", HeaderValue::from_static("application/json"));
+        let mut payload: InputPayload = InputPayload::new();
+        payload.date = selected_date_time;
+
+        let request = LambdaRequest::new(payload);
+        // let mut request = Request::new(Body::from(format!(
+        //     r#"{{"date":"{}"}}"#,
+        //     selected_date_time_str
+        // )));
+        // request
+        //     .headers_mut()
+        //     .insert("Content-Type", HeaderValue::from_static("application/json"));
 
         let oid =
-            ObjectId::with_string("5ec2ae3d00398432001409f3").expect("Object id is not converted");
+            ObjectId::with_string("5ec5639500da050c00e537ec").expect("Object id is not converted");
         let all_numbers: Vec<&str> = vec![
-            "8317", "2642", "9156", "7162", "5339", "2871", "6894", "7238", "4846", "5100", "6824",
-            "5746", "2075", "8079", "0903", "9857", "6843", "0592", "3035",
+            "1897", "9470", "2450", "3045", "7250", "1307", "7414", "5619", "3655", "4837", "7883",
+            "9129", "5754", "6649", "8102", "5497", "6536", "2308", "9539", "4105", "2680", "7227",
+            "2448",
         ];
 
         let mut result: DrawResult = DrawResult::new();
@@ -123,17 +148,20 @@ mod tests {
         result.result = all_numbers.iter().map(|n| n.to_string()).collect();
         result.result_date = UtcDateTime(selected_date_time);
 
-        let expected = json!({
-            "code": 200,
-            "success": true,
-            "payload": result,
-        })
-        .into_response();
+        let expected = LambdaResponseBuilder::new()
+            .with_header(ACCESS_CONTROL_ALLOW_ORIGIN.to_string(), String::from("*"))
+            .with_header(
+                ACCESS_CONTROL_ALLOW_HEADERS.to_string(),
+                String::from("Content-Type,X-Amz-Date,Authorization,X-Api-Key,x-requested-with"),
+            )
+            .with_json(json!({
+                "code": 200,
+                "success": true,
+                "items": result,
+            }));
 
-        let response = handler(request, Context::default())
-            .expect("expected Ok(_) value")
-            .into_response();
+        let response = lambda_handler(request, Context::default()).expect("expected Ok(_) value");
 
-        assert_eq!(response.body(), expected.body())
+        assert_eq!(response, expected.build())
     }
 }
