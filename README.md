@@ -1,4 +1,4 @@
-# Rust For Digits Backend
+# Rust Four Digits Backend
 A Rust hobby project that mimics lottery system/4 digits. So what is 4 digits? [4-Digits](https://en.wikipedia.org/wiki/4-Digits)
 
 ---
